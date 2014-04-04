@@ -29,6 +29,8 @@
         util-date (.toDate clj-time)]
     util-date))
 
+
+
 (defn cast-nfo-fabric [default-parser custom-parsers]
   (fn [map-to-parse]
     (let [ks (keys map-to-parse)
@@ -42,13 +44,27 @@
 (def cast-nfo-maker (cast-nfo-fabric default-parser {:Date date-parser}))
 
 
+
+
+(defn not-empty-date? [raw-game]
+  (not= "" (:Date raw-game)))
+
+(defn remove-vacuum-key [raw-game]
+  (dissoc raw-game (keyword ""))
+  )
+
+
+
 (defn read-games [csv-data]
   (let [data (parse-csv csv-data)
         [headers & games] data
         key-headers (map keyword headers)
         make-game-map #(zipmap key-headers %)
-        game-maps (map make-game-map games)]
-    game-maps))
+        game-maps (map make-game-map games)
+        without-empty-dates (filter not-empty-date? game-maps)
+        without-vacuum-keys (map remove-vacuum-key without-empty-dates)
+        ]
+    without-vacuum-keys))
 
 
 (defn cast-game [game]
