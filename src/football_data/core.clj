@@ -41,13 +41,19 @@
 (defn football-filename [folder [season league]]
   (str folder "/" season "-" league ".csv"))
 
+
+
+
 (defn fetch-and-save [csv-folder seasons leagues]
   (let [permutations (permute seasons leagues)
         filenames (map #(football-filename csv-folder %) permutations)
         urls (map #(apply football/football-data-url %) permutations)]
         (doseq [url urls filename filenames]
-          (let [csv-data (<!! (GET url))]
-            (save-data filename csv-data)))))
+          ;;(let [csv-data (<!! (GET url))]
+            ;;(save-data filename csv-data))
+;;             (save-data filename (<!! (GET url))))
+            (save-data filename (slurp url)))
+    ))
 
 (defn years-pair-to-season [years-pair]
   (let [years-pair-as-strings (map str years-pair)
@@ -152,9 +158,42 @@
 
 (def csv-folder "data/csv")
 
-(def seasons (make-seasons 2000 2002))
-seasons
+(defn data-path [season league]
+  (football-filename csv-folder [season league]))
 
+(defn fetch-and-save-football-data [csv-folder season league]
+  (let [filename (football-filename csv-folder [season league])
+        url (football/football-data-url season league)
+;;         data (slurp url)
+        ]
+
+    (try
+      (let [
+
+            ]
+        (save-data (slurp url))
+        [:ok season league]
+        )
+
+      (catch Exception e [:no-file season league])
+      )
+
+;;     (save-data filename data)
+;;     [:ok season league]
+    ))
+
+
+
+(defn fetch-save-season-league [[season league]]
+  (fetch-and-save-football-data csv-folder season league))
+
+
+
+
+
+;; download football files and save to csv
+
+(def seasons (make-seasons 1990 2015))
 
 (def leagues-nfo [
               {:ticker "E0"}
@@ -179,88 +218,106 @@ seasons
 
 (def leagues (map :ticker leagues-nfo))
 
-leagues
+(def season-league-pairs (permute seasons leagues))
 
 
 
-(fetch-and-save csv-folder seasons leagues)
+;; fetch and save all seasons and leagues
+(doseq [pair season-league-pairs]
+  (let [
+        fetch-result (fetch-save-season-league pair)
+        ]
+    (println fetch-result)))
 
 
 
-;; fabrik for csv data paths
 
-(defn data-path [season league]
-  (football-filename csv-folder [season league]))
+(defn fetch-football-csv [season league]
+  (let [url (football/football-data-url season league)
+        data (slurp url)]
+  data))
 
-(data-path "1213" "E0")
+
+(doseq [pair season-league-pairs]
+  (try
+    (let [[season league] pair
+          filename (football-filename csv-folder [season league])]
+      (save-data filename (fetch-football-csv season league)))
+    (catch Exception e)))
+
+
+;; (save-data (fetch-football-csv "1213" "I1"))
+
+
+
+
+;; (defn fetch-and-save-football-data [csv-folder season league]
+;;   (let [filename (football-filename csv-folder [season league])
+;;         url (football/football-data-url season league)
+;; ;;         data (slurp url)
+;;         ]
+
+;;     (try
+;;       (let [
+
+;;             ]
+;;         (save-data (slurp url))
+;;         [:ok season league]
+;;         )
+
+;;       (catch Exception e [:no-file season league])
+;;       )
+
+;; ;;     (save-data filename data)
+;; ;;     [:ok season league]
+;;     ))
+
+
+
+
+
+
+
+
+
+
+
+
+
+(defn parse-games-from-csv [[season league]]
+  (let [file-path (data-path season league)
+        csv-data (read-string (slurp file-path))
+        games (football/parse-football-data csv-data)]
+    games))
+
+
+(parse-games-from-csv ["0001" "I1"])
+
 
 
 ;; fetch filenames in csv data folder
-(def csv-folder-path (str (pwd) "/" csv-folder))
-(def csv-filenames (directory-list csv-folder-path ".csv"))
-(def csv-filepaths (map #(str csv-folder-path "/" %) csv-filenames))
-
-(first csv-filepaths)
-
+;; (def csv-folder-path (str (pwd) "/" csv-folder))
+;; (def csv-filenames (directory-list csv-folder-path ".csv"))
+;; (def csv-filepaths (map #(str csv-folder-path "/" %) csv-filenames))
+;; (first csv-filepaths)
 
 
+;; (def my-file (nth csv-filepaths 30))
+;; ;; (def my-file (data-path "9798" "E1"))
 
+;; (def my-file (data-path "0102" "E0"))
+;; ;; my-file
 
+;; (def csv-data (slurp my-file))
+;; ;; csv-data
 
+;; ;; this is right now as its not edn??!!
+;; (def aa (read-string csv-data))
+;; ;; aa
 
-(def my-file (nth csv-filepaths 30))
+;; (def games (football/parse-football-data aa))
+;; games
 
-
-(def my-file (data-path "9798" "D1"))
-;; my-file
-
-(def csv-data (slurp my-file))
-;; csv-data
-
-;; this is right now as its not edn??!!
-(def aa (read-string csv-data))
-aa
-
-;; parse the data:
-
-(football/default-parser "66")
-(football/default-parser "")
-
-(def ggg (football/read-games aa))
-ggg
-
-(= "" "")
-
-(defn is-empy-date? [raw-game]
-  (= "" (:Date raw-game)))
-
-
-
-(map :Date ggg)
-
-
-
-(filter is-empy-date? ggg)
-
-(def not-empty-date-games (filter has-valid-date? ggg))
-(def clean (map remove-empty-key not-empty-date-games))
-clean
-
-
-(def xxx (first not-empty-date-games))
-
-xxx
-
-(first (keys xxx))
-(keyword "")
-
-((keyword "") xxx)
-
-
-
-
-(def games (football/parse-football-data aa))
-games
 
 
 ;; mongolab football-database:
@@ -269,11 +326,5 @@ games
 ;; pwd.: footballdata
 ;; i.e.:
 ;; mongodb://encho:footballdata@ds061797.mongolab.com:61797/football-data
-
-(football/date-parser "30/01/01")
-(football/date-parser "30/01/99")
-
-;; #inst "1999-01-01T00:00:00.000-00:00"
-
 
 
